@@ -1,0 +1,8 @@
+# macOS
+.DS_Store
+._*
+
+# Exported videos
+*.mp4
+*.webm
+*.mov
