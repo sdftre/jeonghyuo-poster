@@ -455,20 +455,25 @@ new p5((p) => {
     }
   }
 
+  function updatePosterText() {
+    const opacity=clamp(progress-3,0,1);
+    for(const image of document.querySelectorAll('.poster-text'))image.style.opacity=opacity;
+  }
   function begin(s) {
     // Read the latest size before planting, even if a resize debounce is pending.
     if(!tree){clearTimeout(resizeTimer);resizeView();}
     seed=s>>>0;tree=makeForest(seed);baseForest=tree;
     sideTrees=makeSideTrees(baseForest,seed);visibleTrees=[];updateVisibleTrees();
-    progress=0;requested=1;
-    clearSaveNotice();
+    progress=0;requested=1;updatePosterText();
     document.querySelector('#controls').style.visibility='visible';
+    clearSaveNotice();
     previousTime=p.millis();p.loop();
   }
   function reset() {
     tree=null;baseForest=null;sideTrees=[];visibleTrees=[];progress=0;requested=0;p.background(255);p.noLoop();
-    document.querySelector('#controls').style.visibility='hidden';
+    updatePosterText();
     clearSaveNotice();
+    document.querySelector('#controls').style.visibility='hidden';
     if(canvas)resizeView();
   }
   let saveNoticeAnimation=null;
@@ -488,24 +493,40 @@ new p5((p) => {
     ],{duration:2000,easing:'linear',fill:'forwards'});
     saveNoticeAnimation.onfinish=clearSaveNotice;
   }
-  function savePNG() {
+  async function savePNG() {
     if(!tree || progress<4) {
       showSaveNotice();
       return;
     }
     clearSaveNotice();
+    const labels=[...document.querySelectorAll('.poster-text')];
+    try {await Promise.all(labels.map(label=>label.decode()));}
+    catch(error) {console.error('Poster SVG could not be loaded',error);return;}
+    if(!tree || progress<4)return;
+    // Export half the footer height as white space; the on-screen footer stays unchanged.
+    const area=document.querySelector('#art').getBoundingClientRect();
+    const footer=document.querySelector('#controls').getBoundingClientRect();
+    const scale=H/area.height;
     const image=document.createElement('canvas');
-    image.width=canvas.elt.width;image.height=canvas.elt.height;
+    image.width=Math.round(area.width*scale);
+    image.height=Math.round((area.height+footer.height*.5)*scale);
     const ctx=image.getContext('2d');
     ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,image.width,image.height);
-    ctx.drawImage(canvas.elt,0,0);
+    function composite(source,element) {
+      const box=element.getBoundingClientRect();
+      ctx.drawImage(source,(box.left-area.left)*scale,(box.top-area.top)*scale,
+        box.width*scale,box.height*scale);
+    }
+    ctx.imageSmoothingEnabled=false;composite(canvas.elt,canvas.elt);
+    ctx.imageSmoothingEnabled=true;
+    for(const label of labels)composite(label,label);
     p.saveCanvas(image,`tree-${seed}`,'png');
   }
   p.draw=()=>{
     if(!tree)return;
     const now=p.millis(),dt=Math.min((now-previousTime)/1000,.08);previousTime=now;
     progress=Math.min(requested,progress+dt/STAGE_SECONDS);
-    drawGrowth();
+    drawGrowth();updatePosterText();
     if(progress>=requested)p.noLoop();
   };
   p.setup=()=>{

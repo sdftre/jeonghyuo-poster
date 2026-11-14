@@ -1,10 +1,14 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; background: #fff; color: #111; font-family: Arial, sans-serif; }
 body { min-height: 100svh; display: flex; flex-direction: column; align-items: center; }
-#art { width: 100%; height: calc(100svh - 58px); display: flex; align-items: center; justify-content: center; }
+#art { position: relative; width: 100%; height: calc(100svh - 58px); display: flex; align-items: center; justify-content: center; }
 canvas { display: block; max-width: 100%; max-height: 100%; width: auto !important; height: auto !important; object-fit: contain; cursor: pointer; touch-action: manipulation; }
-#controls { position: relative; height: 58px; flex-shrink: 0; display: flex; gap: 24px; align-items: flex-start; justify-content: center; padding: 0 12px; font-size: 12px; visibility: hidden; }
+#controls { position: relative; height: 58px; flex-shrink: 0; display: flex; gap: 24px; align-items: flex-start; justify-content: center; padding: 0 12px; font-size: 10px; font-weight: 300; visibility: hidden; }
 button { font: inherit; background: transparent; color: black; border: 0; border-radius: 0; padding: 10px 8px; min-height: 44px; cursor: pointer; touch-action: manipulation; }
 button:hover { opacity: .65; }
 button:focus-visible { outline: 1px solid #111; outline-offset: -4px; }
-#save-status { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1; opacity: 0; margin: 0; color: #B3B3B3; font-size: 12px; line-height: 14px; white-space: nowrap; pointer-events: none; }
+#save-status { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1; opacity: 0; margin: 0; color: #B3B3B3; font-size: 10px; line-height: 14px; white-space: nowrap; pointer-events: none; }
+
+.poster-text { position: absolute; z-index: 1; opacity: 0; pointer-events: none; user-select: none; height: auto; max-width: calc(100% - 40px); }
+#poster-title { top: clamp(20px, 5vw, 48px); right: clamp(20px, 5vw, 48px); width: 48.1143px; }
+#poster-info { bottom: calc(clamp(20px, 5vw, 48px) - 16px); left: clamp(20px, 5vw, 48px); width: 187.9556px; }
