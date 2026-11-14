@@ -456,6 +456,7 @@ new p5((p) => {
   }
 
   let infoLineStep=27/211.45;
+  let infoButtonSpan=54/211.45;
   function measureInfoLines() {
     const image=document.querySelector('#poster-info');
     const xml=decodeURIComponent(image.src.slice(image.src.indexOf(',')+1));
@@ -472,6 +473,8 @@ new p5((p) => {
       else rows.push({...band});
     }
     if(rows.length>=2)infoLineStep=(rows.at(-1).bottom-rows.at(-2).bottom)/svg.viewBox.baseVal.width;
+    // Span from the time row to the final room row; keep the lower button anchored.
+    if(rows.length>=3)infoButtonSpan=(rows.at(-1).bottom-rows.at(-3).bottom)/svg.viewBox.baseVal.width;
     svg.remove();
     alignMobileButtons();
   }
@@ -480,6 +483,7 @@ new p5((p) => {
     const controls=document.querySelector('#controls');
     const width=document.querySelector('#poster-info').getBoundingClientRect().width;
     controls.style.setProperty('--button-step',`${infoLineStep*width}px`);
+    controls.style.setProperty('--button-gap',`${Math.max(0,infoButtonSpan-infoLineStep)*width}px`);
     const ctx=document.createElement('canvas').getContext('2d');
     for(const button of controls.querySelectorAll('button')) {
       const label=button.querySelector('.control-label');

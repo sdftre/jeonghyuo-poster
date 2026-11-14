@@ -25,11 +25,23 @@ button:focus-visible { outline: 1px solid #111; outline-offset: -4px; }
     padding: 0;
     flex-direction: column;
     align-items: flex-end;
-    gap: 0;
+    gap: var(--button-gap, 24px);
     z-index: 2;
   }
   #controls button { padding: 0; min-height: 0; height: var(--button-step, 24px); line-height: var(--button-step, 24px); position: relative; }
-  #controls .control-label { position: relative; top: var(--ink-shift, 0px); }
+  #controls .control-label { position: relative; top: var(--ink-shift, 0px); z-index: 0; }
+  #controls .control-label::before {
+    content: '';
+    position: absolute;
+    inset: -5px -8px;
+    z-index: -1;
+    pointer-events: none;
+    background: rgba(255, 255, 255, 0.2);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    -webkit-mask-image: radial-gradient(ellipse, #000 60%, transparent 100%);
+    mask-image: radial-gradient(ellipse, #000 60%, transparent 100%);
+  }
   #controls button::before { content: ''; position: absolute; inset: 0 -8px; }
 
   #save { order: -1; }
