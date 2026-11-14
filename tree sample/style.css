@@ -3,8 +3,8 @@ html, body { margin: 0; background: #fff; color: #111; font-family: Arial, sans-
 body { min-height: 100svh; display: flex; flex-direction: column; align-items: center; }
 #art { width: 100%; height: calc(100svh - 58px); display: flex; align-items: center; justify-content: center; }
 canvas { display: block; max-width: 100%; max-height: 100%; width: auto !important; height: auto !important; object-fit: contain; cursor: pointer; touch-action: manipulation; }
-#controls { min-height: 58px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; padding: 10px; font-size: 11px; }
-input, button { font: inherit; background: white; color: black; border: 1px solid #ddd; border-radius: 0; padding: 7px 9px; }
-input { width: 100px; }
-button { cursor: pointer; }
-button:hover { border-color: black; }
+#controls { position: relative; height: 58px; flex-shrink: 0; display: flex; gap: 24px; align-items: flex-start; justify-content: center; padding: 0 12px; font-size: 12px; visibility: hidden; }
+button { font: inherit; background: transparent; color: black; border: 0; border-radius: 0; padding: 10px 8px; min-height: 44px; cursor: pointer; touch-action: manipulation; }
+button:hover { opacity: .65; }
+button:focus-visible { outline: 1px solid #111; outline-offset: -4px; }
+#save-status { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1; opacity: 0; margin: 0; color: #B3B3B3; font-size: 12px; line-height: 14px; white-space: nowrap; pointer-events: none; }

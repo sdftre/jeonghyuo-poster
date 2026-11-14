@@ -9,12 +9,11 @@
 </head>
 <body>
   <main id="art" aria-label="두 가지 색의 작은 픽셀로 생성한 나무. 클릭하면 새 나무가 생성됩니다."></main>
-  <form id="controls">
-    <label>Seed <input id="seed" inputmode="numeric" aria-label="나무 시드"></label>
-    <button type="submit">다시 생성</button>
-    <button type="button" id="new">새 나무</button>
+  <footer id="controls">
+    <button type="button" id="new">다시 생성하기</button>
     <button type="button" id="save">PNG 저장</button>
-  </form>
+    <p id="save-status" role="status" aria-live="polite"></p>
+  </footer>
   <script src="sketch.js"></script>
 </body>
 </html>

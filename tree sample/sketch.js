@@ -461,14 +461,45 @@ new p5((p) => {
     seed=s>>>0;tree=makeForest(seed);baseForest=tree;
     sideTrees=makeSideTrees(baseForest,seed);visibleTrees=[];updateVisibleTrees();
     progress=0;requested=1;
-    document.querySelector('#seed').value=seed;
+    clearSaveNotice();
     document.querySelector('#controls').style.visibility='visible';
     previousTime=p.millis();p.loop();
   }
   function reset() {
     tree=null;baseForest=null;sideTrees=[];visibleTrees=[];progress=0;requested=0;p.background(255);p.noLoop();
     document.querySelector('#controls').style.visibility='hidden';
+    clearSaveNotice();
     if(canvas)resizeView();
+  }
+  let saveNoticeAnimation=null;
+  function clearSaveNotice() {
+    if(saveNoticeAnimation){saveNoticeAnimation.cancel();saveNoticeAnimation=null;}
+    document.querySelector('#save-status').textContent='';
+  }
+  function showSaveNotice() {
+    clearSaveNotice();
+    const status=document.querySelector('#save-status');
+    status.textContent='나무가 다 자라지 않았습니다';
+    saveNoticeAnimation=status.animate([
+      {opacity:0,offset:0},
+      {opacity:1,offset:.25},
+      {opacity:1,offset:.75},
+      {opacity:0,offset:1}
+    ],{duration:2000,easing:'linear',fill:'forwards'});
+    saveNoticeAnimation.onfinish=clearSaveNotice;
+  }
+  function savePNG() {
+    if(!tree || progress<4) {
+      showSaveNotice();
+      return;
+    }
+    clearSaveNotice();
+    const image=document.createElement('canvas');
+    image.width=canvas.elt.width;image.height=canvas.elt.height;
+    const ctx=image.getContext('2d');
+    ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,image.width,image.height);
+    ctx.drawImage(canvas.elt,0,0);
+    p.saveCanvas(image,`tree-${seed}`,'png');
   }
   p.draw=()=>{
     if(!tree)return;
@@ -482,8 +513,6 @@ new p5((p) => {
     const observer=new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(resizeView,120);});
     observer.observe(document.querySelector('#art'));
     document.querySelector('#art').setAttribute('aria-label','화면 아래에서 터치할 때마다 함께 자라는 6~7그루의 숲. 총 네 번의 터치로 완성됩니다.');
-    document.querySelector('#new').textContent='처음으로';
-    document.querySelector('#controls button[type="submit"]').textContent='시드로 재현';
     canvas.elt.addEventListener('pointerdown',event=>{
       if(!event.isPrimary || event.button!==0)return;
       event.preventDefault();
@@ -494,11 +523,7 @@ new p5((p) => {
         begin(freshSeed(x,y));
       } else if(requested<4) {requested++;previousTime=p.millis();p.loop();}
     });
-    document.querySelector('#controls').addEventListener('submit',e=>{
-      e.preventDefault();const value=document.querySelector('#seed').value.trim();
-      if(/^\d+$/.test(value))begin(Number(value));
-    });
     document.querySelector('#new').addEventListener('click',reset);
-    document.querySelector('#save').addEventListener('click',()=>p.saveCanvas(canvas,`tree-${seed}`,'png'));
+    document.querySelector('#save').addEventListener('click',savePNG);
   };
 });
