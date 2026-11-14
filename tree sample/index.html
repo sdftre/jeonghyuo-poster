@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tree sample — pixel growth</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="p5.js"></script>
+</head>
+<body>
+  <main id="art" aria-label="두 가지 색의 작은 픽셀로 생성한 나무. 클릭하면 새 나무가 생성됩니다."></main>
+  <form id="controls">
+    <label>Seed <input id="seed" inputmode="numeric" aria-label="나무 시드"></label>
+    <button type="submit">다시 생성</button>
+    <button type="button" id="new">새 나무</button>
+    <button type="button" id="save">PNG 저장</button>
+  </form>
+  <script src="sketch.js"></script>
+</body>
+</html>
