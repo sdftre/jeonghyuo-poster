@@ -26,6 +26,14 @@ new p5((p) => {
   const lerp = (a, b, t) => a + (b - a) * t;
   let seed, canvas, tree=null, colors, progress=0, requested=0, previousTime=0;
   const STAGE_SECONDS=1.1;
+  let viewWidth=W, baseForest=null, sideTrees=[], visibleTrees=[];
+  let resizeTimer;
+  function responsiveWidth(width,height) {
+    const ratio=width/Math.max(1,height);
+    if(ratio<=.7)return W;
+    const blend=smooth(clamp((ratio-.7)/.15,0,1));
+    return Math.round(lerp(W,H*ratio,blend)/PIXEL)*PIXEL;
+  }
   function rng(s) {
     return () => {
       s |= 0; s = s + 0x6D2B79F5 | 0;
@@ -208,7 +216,7 @@ new p5((p) => {
   const smooth=t=>t*t*(3-2*t);
   const output=mask();
   output.canvas.width=W/PIXEL;output.canvas.height=H/PIXEL;
-  const frame=output.createImageData(W/PIXEL,H/PIXEL);
+  let frame=output.createImageData(W/PIXEL,H/PIXEL);
   function describeTree(t) {
     const trunk=t.segments.filter(v=>v.trunk);
     const tip=trunk[trunk.length-1];
@@ -336,9 +344,63 @@ new p5((p) => {
     choice.forest.composition=choice.metrics;
     return choice.forest;
   }
+  // Extend the original composition in a stable world coordinate system.
+  // New trees keep their own seeds; resizing only reveals or hides them.
+  function makeSideTrees(forest,s) {
+    const random=rng(s ^ 0x63A21),extra=[];
+    for(const side of [-1,1]) {
+      let neighbor=side<0 ? forest[0]:forest[forest.length-1];
+      let root=neighbor.offsetX;
+      const sideCount=Math.floor((18-forest.length)/2)+(side<0 ? (18-forest.length)%2:0);
+      for(let i=0;i<sideCount;i++) {
+        root+=side*lerp(220,320,random());
+        let chosen;
+        for(let attempt=0;attempt<512;attempt++) {
+          const treeSeed=(s ^ Math.imul(i+1+(side>0?6:0),0x9e3779b9) ^ Math.imul(attempt,0x85ebca6b))>>>0;
+          const t=makeTree(treeSeed),r=rng(treeSeed ^ 0x43A7);
+          t.scaleX=t.scaleY=H*lerp(.40,.92,r())/(-t.minY);
+          t.offsetX=root;t.treeSeed=treeSeed;t.features=describeTree(t);
+          if((t.maxX-t.minX)*t.scaleX>W-8)continue;
+          if(neighborDifferences(t.features,neighbor.features)<2)continue;
+          const pick=exclude=>{
+            const pool=(r()<.7 ? forest.dominantColors:PALETTE).filter(c=>c!==exclude);
+            return pool[Math.floor(r()*pool.length)];
+          };
+          const wood=pick(null);t.colors={wood,leaf:pick(wood)};
+          t.revealWidth=Math.max((neighbor.revealWidth||W)+40,
+            W+2*Math.max(0,-(root+t.minX*t.scaleX)+25,root+t.maxX*t.scaleX-W+25));
+          chosen=t;break;
+        }
+        if(!chosen)break;
+        extra.push(chosen);neighbor=chosen;
+      }
+    }
+    return extra;
+  }
+  function updateVisibleTrees() {
+    if(!baseForest){visibleTrees=[];return;}
+    const previous=new Set(visibleTrees);
+    const extras=sideTrees.filter(t=>viewWidth>=t.revealWidth+(previous.has(t)?-24:24));
+    visibleTrees=[...baseForest,...extras].sort((a,b)=>a.offsetX-b.offsetX);
+    document.querySelector('#art').setAttribute('aria-label',
+      `화면 아래에서 터치할 때마다 함께 자라는 ${visibleTrees.length}그루의 숲. 총 네 번의 터치로 완성됩니다.`);
+  }
+  function resizeView() {
+    // Once planted, CSS scales the fixed canvas without regenerating the forest.
+    if(tree)return;
+    const rect=document.querySelector('#art').getBoundingClientRect();
+    const next=responsiveWidth(rect.width,rect.height);
+    if(next!==viewWidth) {
+      viewWidth=next;p.resizeCanvas(viewWidth,H,true);
+      output.canvas.width=viewWidth/PIXEL;
+      frame=output.createImageData(viewWidth/PIXEL,H/PIXEL);
+    }
+    updateVisibleTrees();
+    if(tree)drawGrowth();else p.background(255);
+  }
   function drawGrowth() {
     frame.data.fill(255);
-    for(const t of tree) drawTree(t);
+    for(const t of visibleTrees) drawTree(t);
     output.putImageData(frame,0,0);
     // Copy explicitly to the full backing store: no p5 pixel-density/stride assumptions.
     const ctx=canvas.elt.getContext('2d');
@@ -347,9 +409,10 @@ new p5((p) => {
   }
   function drawTree(t) {
     const {segments,leaves,scaleX,scaleY,offsetX,colors,treeSeed}=t;
+    const localOrigin=clamp(offsetX,-t.minX*scaleX+4,W-t.maxX*scaleX-4);
     for(const ctx of [wood,foliage]) {
       ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,W/PIXEL,H/PIXEL);
-      ctx.setTransform(scaleX/PIXEL,0,0,scaleY/PIXEL,offsetX/PIXEL,(H+4)/PIXEL);
+      ctx.setTransform(scaleX/PIXEL,0,0,scaleY/PIXEL,localOrigin/PIXEL,(H+4)/PIXEL);
     }
     wood.fillStyle='#000';
     for(const v of segments) {
@@ -384,20 +447,28 @@ new p5((p) => {
       const sample=((hash ^ hash>>>16)>>>0)/4294967296;
       const color=sample<fa ? lc:sample<(wa>.7 ? 1:wa) ? wc:null;
       if(color) {
-        frame.data[i]=color[0];frame.data[i+1]=color[1];frame.data[i+2]=color[2];
+        const targetX=x+Math.round((offsetX-localOrigin)/PIXEL)+Math.round((viewWidth-W)/2/PIXEL);
+        if(targetX<0||targetX>=viewWidth/PIXEL)continue;
+        const target=(y*(viewWidth/PIXEL)+targetX)*4;
+        frame.data[target]=color[0];frame.data[target+1]=color[1];frame.data[target+2]=color[2];
       }
     }
   }
 
   function begin(s) {
-    seed=s>>>0;tree=makeForest(seed);progress=0;requested=1;
+    // Read the latest size before planting, even if a resize debounce is pending.
+    if(!tree){clearTimeout(resizeTimer);resizeView();}
+    seed=s>>>0;tree=makeForest(seed);baseForest=tree;
+    sideTrees=makeSideTrees(baseForest,seed);visibleTrees=[];updateVisibleTrees();
+    progress=0;requested=1;
     document.querySelector('#seed').value=seed;
     document.querySelector('#controls').style.visibility='visible';
     previousTime=p.millis();p.loop();
   }
   function reset() {
-    tree=null;progress=0;requested=0;p.background(255);p.noLoop();
+    tree=null;baseForest=null;sideTrees=[];visibleTrees=[];progress=0;requested=0;p.background(255);p.noLoop();
     document.querySelector('#controls').style.visibility='hidden';
+    if(canvas)resizeView();
   }
   p.draw=()=>{
     if(!tree)return;
@@ -408,6 +479,8 @@ new p5((p) => {
   };
   p.setup=()=>{
     canvas=p.createCanvas(W,H);p.pixelDensity(1);canvas.parent('art');p.frameRate(30);reset();
+    const observer=new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(resizeView,120);});
+    observer.observe(document.querySelector('#art'));
     document.querySelector('#art').setAttribute('aria-label','화면 아래에서 터치할 때마다 함께 자라는 6~7그루의 숲. 총 네 번의 터치로 완성됩니다.');
     document.querySelector('#new').textContent='처음으로';
     document.querySelector('#controls button[type="submit"]').textContent='시드로 재현';
