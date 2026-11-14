@@ -224,7 +224,7 @@ new p5((p) => {
     const bend=Math.sqrt(a.angles.reduce((sum,v,i)=>sum+(v-b.angles[i])**2,0)/a.angles.length)>=.12;
     return Number(height)+Number(lean)+Number(bend);
   }
-  function makeForest(s) {
+  function makeForestCandidate(s) {
     const random=rng(s ^ 0x312C9);
     const count=6+Math.floor(random()*2);
     const minGap=40;
@@ -269,6 +269,72 @@ new p5((p) => {
       forest.push(chosen);
     }
     return forest;
+  }
+  function scoreComposition(forest) {
+    // Coarse per-tree leaf footprints: inspect spatial overlap without rasterizing
+    // a full-resolution image or changing any individual tree geometry.
+    const cell=32,cols=Math.ceil(W/cell),rows=Math.ceil(H/cell);
+    const counts=new Uint8Array(cols*rows);
+    let low=rows,high=0;
+    for(const t of forest) {
+      const occupied=new Set();
+      for(const leaf of t.leaves) {
+        const x=leaf.x*t.scaleX+t.offsetX,y=leaf.y*t.scaleY+H+4;
+        const rx=Math.max(cell*.65,leaf.size*t.scaleX);
+        const ry=Math.max(cell*.65,leaf.size*t.scaleY);
+        const x0=clamp(Math.floor((x-rx)/cell),0,cols-1),x1=clamp(Math.floor((x+rx)/cell),0,cols-1);
+        const y0=clamp(Math.floor((y-ry)/cell),0,rows-1),y1=clamp(Math.floor((y+ry)/cell),0,rows-1);
+        for(let cy=y0;cy<=y1;cy++)for(let cx=x0;cx<=x1;cx++)occupied.add(cy*cols+cx);
+      }
+      for(const i of occupied){counts[i]++;const row=Math.floor(i/cols);low=Math.min(low,row);high=Math.max(high,row);}
+    }
+    let filled=0,overlap=0,crowded=0;
+    for(const n of counts){if(n>0)filled++;if(n>1)overlap++;if(n>2)crowded++;}
+    const overlapRatio=overlap/Math.max(1,filled);
+    const crowdedRatio=crowded/Math.max(1,filled);
+    const coverage=filled/Math.max(1,cols*(high-low+1));
+    const gaps=forest.slice(1).map((t,i)=>t.offsetX-forest[i].offsetX);
+    const mean=gaps.reduce((a,b)=>a+b,0)/gaps.length;
+    const contrast=Math.sqrt(gaps.reduce((sum,v)=>sum+(v-mean)**2,0)/gaps.length)/mean;
+    const score=1.8*Math.exp(-(((overlapRatio-.18)/.16)**2))
+      -3*crowdedRatio-2*Math.max(0,coverage-.62)
+      +.6*Math.min(contrast,1)-Math.max(0,.20-coverage);
+    return {score,overlapRatio,crowdedRatio,coverage,contrast};
+  }
+  function assignForestColors(forest,s) {
+    const random=rng(s ^ 0x7C104);
+    const pool=[...PALETTE],dominant=[];
+    for(let i=0;i<3;i++)dominant.push(pool.splice(Math.floor(random()*pool.length),1)[0]);
+    function pick(exclude) {
+      const source=(random()<.70 ? dominant:pool).filter(c=>c!==exclude);
+      return source[Math.floor(random()*source.length)];
+    }
+    for(let i=0;i<forest.length;i++) {
+      // Seed the three shared colors, then reuse them across trunks and leaves.
+      const wood=i<3 ? dominant[i]:pick(null);
+      forest[i].colors={wood,leaf:pick(wood)};
+    }
+    forest.dominantColors=dominant;
+  }
+  function makeForest(s) {
+    const candidates=[];
+    for(let attempt=0;attempt<8 && candidates.length<5;attempt++) {
+      const candidateSeed=(s+Math.imul(attempt,0x27d4eb2d))>>>0;
+      let forest;
+      try{forest=makeForestCandidate(candidateSeed);}
+      catch(error){
+        if(error.message==='Could not generate sufficiently distinct neighboring trees')continue;
+        throw error;
+      }
+      candidates.push({forest,metrics:scoreComposition(forest)});
+    }
+    if(!candidates.length)throw new Error('Could not generate sufficiently distinct neighboring trees');
+    candidates.sort((a,b)=>b.metrics.score-a.metrics.score);
+    const random=rng(s ^ 0x10A6D);
+    const choice=candidates[Math.floor(random()*Math.min(3,candidates.length))];
+    assignForestColors(choice.forest,s);
+    choice.forest.composition=choice.metrics;
+    return choice.forest;
   }
   function drawGrowth() {
     frame.data.fill(255);
