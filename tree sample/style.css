@@ -12,3 +12,27 @@ button:focus-visible { outline: 1px solid #111; outline-offset: -4px; }
 .poster-text { position: absolute; z-index: 1; opacity: 0; pointer-events: none; user-select: none; height: auto; max-width: calc(100% - 40px); }
 #poster-title { top: clamp(20px, 5vw, 48px); right: clamp(20px, 5vw, 48px); width: 48.1143px; }
 #poster-info { bottom: calc(clamp(20px, 5vw, 48px) - 16px); left: clamp(20px, 5vw, 48px); width: 187.9556px; }
+
+@media (aspect-ratio < 7/10) {
+  #art { height: 100svh; }
+  #poster-title { right: clamp(30px, 7.5vw, 72px); }
+  #poster-info { left: clamp(30px, 7.5vw, 72px); bottom: calc(clamp(20px, 5vw, 48px) + 4px); }
+  #controls {
+    position: absolute;
+    right: clamp(30px, 7.5vw, 72px);
+    bottom: calc(clamp(20px, 5vw, 48px) + 4px);
+    height: auto;
+    padding: 0;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0;
+    z-index: 2;
+  }
+  #controls button { padding: 0; min-height: 0; height: var(--button-step, 24px); line-height: var(--button-step, 24px); position: relative; }
+  #controls .control-label { position: relative; top: var(--ink-shift, 0px); }
+  #controls button::before { content: ''; position: absolute; inset: 0 -8px; }
+
+  #save { order: -1; }
+}
+
+.baseline-marker { display: inline-block; width: 0; height: 0; padding: 0; margin: 0; }

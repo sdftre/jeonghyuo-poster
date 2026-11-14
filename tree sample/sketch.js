@@ -455,6 +455,43 @@ new p5((p) => {
     }
   }
 
+  let infoLineStep=27/211.45;
+  function measureInfoLines() {
+    const image=document.querySelector('#poster-info');
+    const xml=decodeURIComponent(image.src.slice(image.src.indexOf(',')+1));
+    const svg=new DOMParser().parseFromString(xml,'image/svg+xml').documentElement;
+    svg.style.cssText='position:absolute;visibility:hidden;pointer-events:none;left:-10000px';
+    document.body.appendChild(svg);
+    const bands=[...svg.querySelectorAll('path')].map(path=>{
+      const b=path.getBBox();return {top:b.y,bottom:b.y+b.height};
+    }).sort((a,b)=>a.top-b.top);
+    const rows=[];
+    for(const band of bands) {
+      const last=rows[rows.length-1];
+      if(last && band.top<=last.bottom+2)last.bottom=Math.max(last.bottom,band.bottom);
+      else rows.push({...band});
+    }
+    if(rows.length>=2)infoLineStep=(rows.at(-1).bottom-rows.at(-2).bottom)/svg.viewBox.baseVal.width;
+    svg.remove();
+    alignMobileButtons();
+  }
+  function alignMobileButtons() {
+    if(!window.matchMedia('(aspect-ratio < 7/10)').matches)return;
+    const controls=document.querySelector('#controls');
+    const width=document.querySelector('#poster-info').getBoundingClientRect().width;
+    controls.style.setProperty('--button-step',`${infoLineStep*width}px`);
+    const ctx=document.createElement('canvas').getContext('2d');
+    for(const button of controls.querySelectorAll('button')) {
+      const label=button.querySelector('.control-label');
+      label.style.setProperty('--ink-shift','0px');
+      const style=getComputedStyle(button);
+      ctx.font=`${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const metrics=ctx.measureText(label.textContent);
+      const baseline=label.querySelector('.baseline-marker').getBoundingClientRect().top;
+      const shift=button.getBoundingClientRect().bottom-baseline-metrics.actualBoundingBoxDescent;
+      label.style.setProperty('--ink-shift',`${shift}px`);
+    }
+  }
   function updatePosterText() {
     const opacity=clamp(progress-3,0,1);
     for(const image of document.querySelectorAll('.poster-text'))image.style.opacity=opacity;
@@ -503,13 +540,14 @@ new p5((p) => {
     try {await Promise.all(labels.map(label=>label.decode()));}
     catch(error) {console.error('Poster SVG could not be loaded',error);return;}
     if(!tree || progress<4)return;
-    // Export half the footer height as white space; the on-screen footer stays unchanged.
+    // Mobile controls overlay the poster; only the desktop footer adds export space.
     const area=document.querySelector('#art').getBoundingClientRect();
     const footer=document.querySelector('#controls').getBoundingClientRect();
+    const footerSpace=getComputedStyle(document.querySelector('#controls')).position==='absolute' ? 0:footer.height*.5;
     const scale=H/area.height;
     const image=document.createElement('canvas');
     image.width=Math.round(area.width*scale);
-    image.height=Math.round((area.height+footer.height*.5)*scale);
+    image.height=Math.round((area.height+footerSpace)*scale);
     const ctx=image.getContext('2d');
     ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,image.width,image.height);
     function composite(source,element) {
@@ -531,7 +569,9 @@ new p5((p) => {
   };
   p.setup=()=>{
     canvas=p.createCanvas(W,H);p.pixelDensity(1);canvas.parent('art');p.frameRate(30);reset();
-    const observer=new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(resizeView,120);});
+    measureInfoLines();
+    document.fonts.ready.then(alignMobileButtons);
+    const observer=new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{resizeView();alignMobileButtons();},120);});
     observer.observe(document.querySelector('#art'));
     document.querySelector('#art').setAttribute('aria-label','화면 아래에서 터치할 때마다 함께 자라는 6~7그루의 숲. 총 네 번의 터치로 완성됩니다.');
     canvas.elt.addEventListener('pointerdown',event=>{
