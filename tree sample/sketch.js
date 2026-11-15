@@ -1,6 +1,7 @@
 /* θ = seed; H = makeTree; Tθ = stored branch/leaf geometry; y = rasterized pixels.
    No image assets. Geometry and sampling both use the seed for reproducibility. */
 new p5((p) => {
+  const sound = new ForestSound();
   const W = 1080, H = 1920, PIXEL = 2;
   const PALETTE = [
     // 형광 정원
@@ -505,16 +506,20 @@ new p5((p) => {
     if(!tree){clearTimeout(resizeTimer);resizeView();}
     seed=s>>>0;tree=makeForest(seed);baseForest=tree;
     sideTrees=makeSideTrees(baseForest,seed);visibleTrees=[];updateVisibleTrees();
+    sound.plant(seed,visibleTrees,viewWidth,H);
     progress=0;requested=1;updatePosterText();
     document.querySelector('#controls').style.visibility='visible';
+    document.querySelector('#sound').style.visibility='visible';
     clearSaveNotice();
     previousTime=p.millis();p.loop();
   }
   function reset() {
+    sound.reset();
     tree=null;baseForest=null;sideTrees=[];visibleTrees=[];progress=0;requested=0;p.background(255);p.noLoop();
     updatePosterText();
     clearSaveNotice();
     document.querySelector('#controls').style.visibility='hidden';
+    document.querySelector('#sound').style.visibility='hidden';
     if(canvas)resizeView();
   }
   let saveNoticeAnimation=null;
@@ -568,6 +573,7 @@ new p5((p) => {
     if(!tree)return;
     const now=p.millis(),dt=Math.min((now-previousTime)/1000,.08);previousTime=now;
     progress=Math.min(requested,progress+dt/STAGE_SECONDS);
+    sound.update(progress);
     drawGrowth();updatePosterText();
     if(progress>=requested)p.noLoop();
   };
@@ -581,6 +587,7 @@ new p5((p) => {
     canvas.elt.addEventListener('pointerdown',event=>{
       if(!event.isPrimary || event.button!==0)return;
       event.preventDefault();
+      sound.unlock();
       if(!tree) {
         const rect=canvas.elt.getBoundingClientRect();
         const x=Math.round(clamp((event.clientX-rect.left)/rect.width,0,1)*65535);
@@ -589,6 +596,11 @@ new p5((p) => {
       } else if(requested<4) {requested++;previousTime=p.millis();p.loop();}
     });
     document.querySelector('#new').addEventListener('click',reset);
+    document.querySelector('#sound').addEventListener('click',()=>{
+      const enabled=sound.toggle(),button=document.querySelector('#sound');
+      button.textContent=enabled ? '소리 켜짐':'소리 꺼짐';
+      button.setAttribute('aria-pressed',String(enabled));
+    });
     document.querySelector('#save').addEventListener('click',savePNG);
   };
 });
