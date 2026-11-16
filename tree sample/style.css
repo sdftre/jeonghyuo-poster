@@ -48,9 +48,3 @@ button:focus-visible { outline: 1px solid #111; outline-offset: -4px; }
 }
 
 .baseline-marker { display: inline-block; width: 0; height: 0; padding: 0; margin: 0; }
-
-/* Audio sits outside the measured two-button footer. */
-#sound { position: absolute; top: clamp(20px, 5vw, 48px); left: clamp(20px, 5vw, 48px); z-index: 3; visibility: hidden; font-size: 10px; font-weight: 300; padding: 0; min-height: 44px; display: flex; align-items: flex-start; }
-@media (aspect-ratio < 7/10) {
-  #sound { left: clamp(30px, 7.5vw, 72px); }
-}

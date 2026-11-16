@@ -1,7 +1,6 @@
 /* θ = seed; H = makeTree; Tθ = stored branch/leaf geometry; y = rasterized pixels.
    No image assets. Geometry and sampling both use the seed for reproducibility. */
 new p5((p) => {
-  const sound = new ForestSound();
   const W = 1080, H = 1920, PIXEL = 2;
   const PALETTE = [
     // 형광 정원
@@ -89,6 +88,14 @@ new p5((p) => {
     levels.sort((a,b)=>a-b);
     const initialSide=random()<.5 ? -1:1;
     let word=[token('A',{n:0,w:range(17,23)})];
+    // Shared continuation rule for both the original and the extra generation.
+    function branchContinuation({d,l,w,side,displayStage}) {
+      return [token('E',{chance:random(),angle:side*range(.55,1.0),displayStage}),
+        token('['),token('R',{a:-side*range(.38,.85)}),
+        token('B',{d:d-1,l:l*range(.45,.65),w:w*.53,side:-side,displayStage}),token(']'),
+        token('R',{a:side*range(.08,.32)}),
+        token('B',{d:d-1,l:l*range(.62,.82),w:w*.69,side,displayStage})];
+    }
     function production(t) {
       if(t.op==='A') {
         if(t.n===generations) return [token('B',{d:2,l:65,w:t.w,side:1})];
@@ -110,22 +117,20 @@ new p5((p) => {
             token('B',{d:0,l:l*range(.45,.7),w:w*.32,side:-side}),token(']'),
             token('F',{l:l*.55,w:w*.85,end:Math.max(.6,w*.67),stage:d===3 ? 2:3}));
         } else out.push(token('F',{l,w,end:Math.max(.6,w*.67),stage:d===0 ? 4:3}));
-        if(d===0) return [...out,token('L',{count:Math.max(5,Math.round(l/10)),start:.1})];
+        if(d===0) return [...out,token('L',{count:Math.max(5,Math.round(l/10)),start:.1}),token('Q',{l,w,side})];
         if(d===1) out.push(token('L',{count:2,start:.2}));
-        out.push(token('E',{chance:random(),angle:side*range(.55,1.0)}));
-        out.push(token('['),token('R',{a:-side*range(.38,.85)}),
-          token('B',{d:d-1,l:l*range(.45,.65),w:w*.53,side:-side}),token(']'),
-          token('R',{a:side*range(.08,.32)}),
-          token('B',{d:d-1,l:l*range(.62,.82),w:w*.69,side}));
+        out.push(...branchContinuation(t));
         return out;
       }
       return [t];
     }
     for(let pass=0;pass<generations+5;pass++) word=word.flatMap(production);
     let state={x:0,y:0,a:-Math.PI/2,last:null,id:-1};
-    const stack=[], segments=[], leaves=[], buds=[];
-    for(const t of word) {
-      if(t.op==='[') stack.push({...state});
+    const stack=[], segments=[], leaves=[], buds=[], tips=[];
+    function interpret(program) {
+    for(const t of program) {
+      if(t.op==='Q')tips.push({state:{...state},l:t.l,w:t.w,side:t.side});
+      else if(t.op==='[') stack.push({...state});
       else if(t.op===']') state=stack.pop();
       else if(t.op==='R') state.a+=t.a;
       else if(t.op==='K') {
@@ -141,7 +146,7 @@ new p5((p) => {
         const seg={x:state.x,y:state.y,ex:end.x,ey:end.y,w:t.w,end:t.end,stage:t.stage,parent:state.id,trunk:t.trunk===true};
         segments.push(seg); state={...state,...end,last:seg,id:segments.length-1};
       } else if(t.op==='E') {
-        buds.push({x:state.x,y:state.y,a:state.a+t.angle,parent:state.id,chance:t.chance});
+        buds.push({x:state.x,y:state.y,a:state.a+t.angle,parent:state.id,chance:t.chance,stage:t.displayStage||state.last.stage});
       } else if(t.op==='L') {
         const line=state.last;
         for(let j=0;j<t.count;j++) {
@@ -164,26 +169,31 @@ new p5((p) => {
         }
       }
     }
+    }
+    interpret(word);
     // Optional lateral buds: actual height within this tree gives a gentle bias.
     const treeHeight=-Math.min(...segments.map(v=>Math.min(v.y,v.ey)));
-    for(const bud of buds) {
+    function growBuds(items) {
+    for(const bud of items) {
       const h=clamp(-bud.y/treeHeight,0,1);
       if(bud.chance>=.15+.20*h)continue;
       let x=bud.x,y=bud.y,parent=bud.parent;
       const length=range(20,38);
       for(let k=0;k<2;k++) {
         const a=bud.a+range(-.15,.15),ex=x+Math.cos(a)*length,ey=y+Math.sin(a)*length;
-        segments.push({x,y,ex,ey,w:k===0 ? 1.1:.75,end:.5,stage:4,parent});
+        segments.push({x,y,ex,ey,w:k===0 ? 1.1:.75,end:.5,stage:Math.max(4,bud.stage),parent});
         parent=segments.length-1;
         for(let j=0;j<2;j++) {
           const la=a+(j ? 1:-1)*range(.4,.9),size=range(8,12);
           leaves.push({x:lerp(x,ex,.55+j*.35)+Math.cos(la)*size*.5,
             y:lerp(y,ey,.55+j*.35)+Math.sin(la)*size*.5,
-            parent,stage:4,a:la,size,aspect:range(.34,.5),alpha:range(.65,.95)});
+            parent,stage:Math.max(4,bud.stage),a:la,size,aspect:range(.34,.5),alpha:range(.65,.95)});
         }
         x=ex;y=ey;
       }
     }
+    }
+    growBuds(buds);
     // Fit every generated silhouette including foliage; the root stays below the frame.
     const xs=segments.flatMap(v=>[v.x,v.ex]).concat(leaves.flatMap(v=>[v.x-v.size,v.x+v.size]));
     const ys=segments.flatMap(v=>[v.y,v.ey]).concat(leaves.map(v=>v.y-v.size));
@@ -192,24 +202,51 @@ new p5((p) => {
     const offsetX=W/2-(minX+maxX)*scale/2;
     // Parent-first timing within each growth generation. Each generation occupies
     // one timeline unit regardless of the number of concurrent branches.
-    const maxima=[0,0,0,0,0];
-    for(const v of segments) {
+    function assignTiming(firstSegment=0,firstLeaf=0) {
+    const maxima=[0,0,0,0,0,0,0];
+    for(const v of segments.slice(firstSegment)) {
       const parent=segments[v.parent];
       v.stage=Math.max(v.stage,parent ? parent.stage:1);
       v.rawStart=parent && parent.stage===v.stage ? parent.rawEnd:0;
       v.rawEnd=v.rawStart+.035+Math.hypot(v.ex-v.x,v.ey-v.y)/700;
       maxima[v.stage]=Math.max(maxima[v.stage],v.rawEnd);
     }
-    for(const v of leaves) {
+    for(const v of leaves.slice(firstLeaf)) {
       const parent=segments[v.parent];v.stage=parent.stage;
       v.rawStart=parent.rawEnd+.04;v.rawEnd=v.rawStart+.16;
       maxima[v.stage]=Math.max(maxima[v.stage],v.rawEnd);
     }
-    for(const v of [...segments,...leaves]) {
+    for(const v of [...segments.slice(firstSegment),...leaves.slice(firstLeaf)]) {
       v.start=v.stage-1+v.rawStart/maxima[v.stage]*.96;
       v.finish=v.stage-1+v.rawEnd/maxima[v.stage]*.96;
     }
-    return {segments,leaves,scale,offsetX,minX,maxX,minY};
+    }
+    assignTiming();
+    let extended=false;
+    function extendGrowth() {
+      if(extended)return;
+      extended=true;
+      const firstSegment=segments.length,firstLeaf=leaves.length,firstBud=buds.length;
+      // Reopen dormant terminal tips for one additional generation. Only the
+      // stopping depth changes; length, angle, taper, buds and leaves use production().
+      for(const tip of tips.slice()) {
+        state={...tip.state};
+        let program=branchContinuation({d:2,l:tip.l,w:tip.w,side:tip.side,displayStage:5});
+        for(let generation=0;generation<1;generation++) {
+          program=program.flatMap(t=>{
+            const result=production(t);
+            if(t.op!=='B')return result;
+            return result.map(next=>next.op==='E'?{...next,displayStage:t.displayStage}:
+              next.op==='F'?{...next,stage:t.displayStage}:
+              next.op==='B'?{...next,displayStage:t.displayStage+1}:next);
+          });
+        }
+        interpret(program);
+      }
+      growBuds(buds.slice(firstBud));
+      assignTiming(firstSegment,firstLeaf);
+    }
+    return {segments,leaves,scale,offsetX,minX,maxX,minY,extendGrowth};
   }
   const wood=mask(), foliage=mask();
   wood.canvas.width=foliage.canvas.width=W/PIXEL;
@@ -384,7 +421,7 @@ new p5((p) => {
     const extras=sideTrees.filter(t=>viewWidth>=t.revealWidth+(previous.has(t)?-24:24));
     visibleTrees=[...baseForest,...extras].sort((a,b)=>a.offsetX-b.offsetX);
     document.querySelector('#art').setAttribute('aria-label',
-      `화면 아래에서 터치할 때마다 함께 자라는 ${visibleTrees.length}그루의 숲. 총 네 번의 터치로 완성됩니다.`);
+      `화면 아래에서 터치할 때마다 함께 자라는 ${visibleTrees.length}그루의 숲. 네 번째 성장이 끝나면 한 번 더 터치해 잔가지를 키울 수 있습니다.`);
   }
   function resizeView() {
     // Once planted, CSS scales the fixed canvas without regenerating the forest.
@@ -399,13 +436,17 @@ new p5((p) => {
     updateVisibleTrees();
     if(tree)drawGrowth();else p.background(255);
   }
+  function rasterizeForest() {
+    frame.data.fill(0);
+    for(const t of visibleTrees)drawTree(t);
+  }
   function drawGrowth() {
-    frame.data.fill(255);
-    for(const t of visibleTrees) drawTree(t);
+    rasterizeForest();
     output.putImageData(frame,0,0);
     // Copy explicitly to the full backing store: no p5 pixel-density/stride assumptions.
     const ctx=canvas.elt.getContext('2d');
     ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.imageSmoothingEnabled=false;
+    ctx.clearRect(0,0,canvas.elt.width,canvas.elt.height);
     ctx.drawImage(output.canvas,0,0,canvas.elt.width,canvas.elt.height);ctx.restore();
   }
   function drawTree(t) {
@@ -451,7 +492,7 @@ new p5((p) => {
         const targetX=x+Math.round((offsetX-localOrigin)/PIXEL)+Math.round((viewWidth-W)/2/PIXEL);
         if(targetX<0||targetX>=viewWidth/PIXEL)continue;
         const target=(y*(viewWidth/PIXEL)+targetX)*4;
-        frame.data[target]=color[0];frame.data[target+1]=color[1];frame.data[target+2]=color[2];
+        frame.data[target]=color[0];frame.data[target+1]=color[1];frame.data[target+2]=color[2];frame.data[target+3]=255;
       }
     }
   }
@@ -506,20 +547,17 @@ new p5((p) => {
     if(!tree){clearTimeout(resizeTimer);resizeView();}
     seed=s>>>0;tree=makeForest(seed);baseForest=tree;
     sideTrees=makeSideTrees(baseForest,seed);visibleTrees=[];updateVisibleTrees();
-    sound.plant(seed,visibleTrees,viewWidth,H);
+    for(const t of visibleTrees)t.extendGrowth();
     progress=0;requested=1;updatePosterText();
     document.querySelector('#controls').style.visibility='visible';
-    document.querySelector('#sound').style.visibility='visible';
     clearSaveNotice();
     previousTime=p.millis();p.loop();
   }
   function reset() {
-    sound.reset();
     tree=null;baseForest=null;sideTrees=[];visibleTrees=[];progress=0;requested=0;p.background(255);p.noLoop();
     updatePosterText();
     clearSaveNotice();
     document.querySelector('#controls').style.visibility='hidden';
-    document.querySelector('#sound').style.visibility='hidden';
     if(canvas)resizeView();
   }
   let saveNoticeAnimation=null;
@@ -573,7 +611,6 @@ new p5((p) => {
     if(!tree)return;
     const now=p.millis(),dt=Math.min((now-previousTime)/1000,.08);previousTime=now;
     progress=Math.min(requested,progress+dt/STAGE_SECONDS);
-    sound.update(progress);
     drawGrowth();updatePosterText();
     if(progress>=requested)p.noLoop();
   };
@@ -583,24 +620,22 @@ new p5((p) => {
     document.fonts.ready.then(alignMobileButtons);
     const observer=new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{resizeView();alignMobileButtons();},120);});
     observer.observe(document.querySelector('#art'));
-    document.querySelector('#art').setAttribute('aria-label','화면 아래에서 터치할 때마다 함께 자라는 6~7그루의 숲. 총 네 번의 터치로 완성됩니다.');
+    document.querySelector('#art').setAttribute('aria-label','화면 아래에서 터치할 때마다 함께 자라는 6~7그루의 숲. 네 번째 성장이 끝나면 한 번 더 터치해 잔가지를 키울 수 있습니다.');
     canvas.elt.addEventListener('pointerdown',event=>{
       if(!event.isPrimary || event.button!==0)return;
       event.preventDefault();
-      sound.unlock();
       if(!tree) {
         const rect=canvas.elt.getBoundingClientRect();
         const x=Math.round(clamp((event.clientX-rect.left)/rect.width,0,1)*65535);
         const y=Math.round(clamp((event.clientY-rect.top)/rect.height,0,1)*65535);
         begin(freshSeed(x,y));
-      } else if(requested<4) {requested++;previousTime=p.millis();p.loop();}
+      } else if(requested<4 || (progress>=4 && requested<5)) {
+        // Extra growth is available only after the fourth stage has finished.
+        requested++;
+        previousTime=p.millis();p.loop();
+      }
     });
     document.querySelector('#new').addEventListener('click',reset);
-    document.querySelector('#sound').addEventListener('click',()=>{
-      const enabled=sound.toggle(),button=document.querySelector('#sound');
-      button.textContent=enabled ? '소리 켜짐':'소리 꺼짐';
-      button.setAttribute('aria-pressed',String(enabled));
-    });
     document.querySelector('#save').addEventListener('click',savePNG);
   };
 });
