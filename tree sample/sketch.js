@@ -621,19 +621,27 @@ new p5((p) => {
     const observer=new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{resizeView();alignMobileButtons();},120);});
     observer.observe(document.querySelector('#art'));
     document.querySelector('#art').setAttribute('aria-label','화면 아래에서 터치할 때마다 함께 자라는 6~7그루의 숲. 네 번째 성장이 끝나면 한 번 더 터치해 잔가지를 키울 수 있습니다.');
-    canvas.elt.addEventListener('pointerdown',event=>{
-      if(!event.isPrimary || event.button!==0)return;
-      event.preventDefault();
+    function advanceGrowth(x=.5,y=.5) {
       if(!tree) {
-        const rect=canvas.elt.getBoundingClientRect();
-        const x=Math.round(clamp((event.clientX-rect.left)/rect.width,0,1)*65535);
-        const y=Math.round(clamp((event.clientY-rect.top)/rect.height,0,1)*65535);
-        begin(freshSeed(x,y));
+        begin(freshSeed(Math.round(clamp(x,0,1)*65535),Math.round(clamp(y,0,1)*65535)));
       } else if(requested<4 || (progress>=4 && requested<5)) {
         // Extra growth is available only after the fourth stage has finished.
         requested++;
         previousTime=p.millis();p.loop();
       }
+    }
+    canvas.elt.addEventListener('pointerdown',event=>{
+      if(!event.isPrimary || event.button!==0)return;
+      event.preventDefault();
+      const rect=canvas.elt.getBoundingClientRect();
+      advanceGrowth((event.clientX-rect.left)/rect.width,(event.clientY-rect.top)/rect.height);
+    });
+    document.addEventListener('keydown',event=>{
+      if(event.code!=='Space' || event.altKey || event.ctrlKey || event.metaKey || event.isComposing)return;
+      // Keep native keyboard activation for buttons and editable fields.
+      if(event.target instanceof Element && event.target.closest('button,a,input,textarea,select,[contenteditable]:not([contenteditable="false"])'))return;
+      event.preventDefault();
+      if(!event.repeat)advanceGrowth();
     });
     document.querySelector('#new').addEventListener('click',reset);
     document.querySelector('#save').addEventListener('click',savePNG);
